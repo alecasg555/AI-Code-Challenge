@@ -30,13 +30,39 @@ public class AddressesController(AppDbContext db) : ControllerBase
     [HttpPut("{id:int}/default")]
     public async Task<IActionResult> SetDefault(int id)
     {
-        var address = await db.Addresses.FindAsync(id);
+        var customerId = User.GetCustomerId();
+        var address = await db.Addresses
+            .FirstOrDefaultAsync(a => a.Id == id && a.CustomerId == customerId);
         if (address is null)
         {
             return NotFound();
         }
 
-        address.IsDefault = true;
+        var customerAddresses = await db.Addresses
+            .Where(a => a.CustomerId == customerId)
+            .ToListAsync();
+        foreach (var customerAddress in customerAddresses)
+        {
+            customerAddress.IsDefault = customerAddress.Id == id;
+        }
+
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // DELETE /api/addresses/{id} — deletes an address belonging to the signed-in customer.
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteAddress(int id)
+    {
+        var customerId = User.GetCustomerId();
+        var address = await db.Addresses
+            .FirstOrDefaultAsync(a => a.Id == id && a.CustomerId == customerId);
+        if (address is null)
+        {
+            return NotFound();
+        }
+
+        db.Addresses.Remove(address);
         await db.SaveChangesAsync();
         return NoContent();
     }

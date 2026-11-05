@@ -21,7 +21,7 @@ public class AddressesApiTests
         var addresses = await client.GetFromJsonAsync<List<AddressDto>>("/api/addresses");
 
         Assert.NotNull(addresses);
-        Assert.Equal(3, addresses.Count);
+        Assert.Equal(new[] { 1, 2, 3 }, addresses.Select(a => a.Id));
     }
 
     [Fact]
@@ -33,6 +33,37 @@ public class AddressesApiTests
         var addresses = await client.GetFromJsonAsync<List<AddressDto>>("/api/addresses");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.True(addresses!.Single(a => a.Id == 2).IsDefault);
+        Assert.Equal(2, addresses![0].Id);
+        Assert.True(addresses[0].IsDefault);
+        Assert.Single(addresses, a => a.IsDefault);
+    }
+
+    [Fact]
+    public async Task SetDefault_CannotChangeAnotherCustomersAddress()
+    {
+        var client = CreateClient();
+
+        var response = await client.PutAsync("/api/addresses/4/default", null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        client.DefaultRequestHeaders.Add("X-Customer-Id", "2");
+        var otherCustomersAddresses = await client.GetFromJsonAsync<List<AddressDto>>("/api/addresses");
+        Assert.True(otherCustomersAddresses!.Single(a => a.Id == 4).IsDefault);
+        Assert.Single(otherCustomersAddresses!, a => a.IsDefault);
+    }
+
+    [Fact]
+    public async Task DeleteAddress_CannotDeleteAnotherCustomersAddress()
+    {
+        var client = CreateClient();
+
+        var response = await client.DeleteAsync("/api/addresses/4");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        client.DefaultRequestHeaders.Add("X-Customer-Id", "2");
+        var otherCustomersAddresses = await client.GetFromJsonAsync<List<AddressDto>>("/api/addresses");
+        Assert.Contains(otherCustomersAddresses!, a => a.Id == 4);
     }
 }
